@@ -202,6 +202,15 @@ function navigateTo(pageId, pushHistory = true) {
 
 function openCategories() { navigateTo('pageCategories'); }
 
+// Shuffle array helper function to randomize display order
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 async function openRestaurants(titleAr, titleEn, heroImageUrl) {
   document.getElementById('categoryHeroImg').src = heroImageUrl;
   document.getElementById('categoryHeroTitle').innerText = `${titleAr} / ${titleEn}`;
@@ -216,6 +225,10 @@ async function openRestaurants(titleAr, titleEn, heroImageUrl) {
     let snapshot = await getDocs(q);
     currentRestaurantsList = [];
     snapshot.forEach(docSnap => currentRestaurantsList.push(docSnap.data()));
+    
+    // Shuffle the list randomly so new restaurants don't always end up at the bottom
+    shuffleArray(currentRestaurantsList);
+    
     renderRestaurants(currentRestaurantsList);
   } catch (err) {
     container.innerHTML = '<p style="grid-column: span 2; text-align: center; color: red; font-size: 13px; padding: 30px;">تعذر تحميل البيانات</p>';
