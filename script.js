@@ -105,16 +105,23 @@ async function renderUserCategories() {
     return;
   }
 
-  categories.forEach(cat => {
+    for (let cat of categories) {
+    // جلب عدد المطاعم التي تنتمي لهذا القسم
+    let countSnap = await getDocs(query(collection(db, 'restaurants'), where('category', '==', cat.titleAr)));
+    let restCount = countSnap.size;
+
     container.innerHTML += `
       <div class="category-card" data-ar="${cat.titleAr}" data-en="${cat.titleEn}" onclick="openRestaurants('${cat.titleAr}', '${cat.titleEn}', '${cat.imgUrl}')">
         <img class="cat-img" src="${cat.imgUrl}" alt="${cat.titleAr}" onerror="this.src='assets/logo.png'">
         <div class="cat-info">
           <div class="cat-title-ar">${cat.titleAr}</div>
-          <div class="cat-title-en">${cat.titleEn}</div>
+          <div class="cat-title-en">${cat.titleEn} • <span style="color: var(--primary-teal, #0f4c5c); font-weight: bold;">${restCount} مطعم</span></div>
         </div>
         <div class="cat-arrow">&lsaquo;</div>
       </div>
+    `;
+  }
+
     `;
   });
 }
