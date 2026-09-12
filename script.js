@@ -86,7 +86,7 @@ async function fetchCategoriesFromFirebase() {
       data.id = docSnap.id;
       currentCategoriesList.push(data);
     });
-    // ترتيب الأقسام حسب قيمة order
+    // ترتيب الأقسام بحسب قيمة order
     currentCategoriesList.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     return currentCategoriesList;
   } catch (err) {
@@ -185,6 +185,7 @@ async function renderAdminManageCategories() {
   container.innerHTML = '<p style="text-align:center; padding:10px; font-size:12px; color:#666;">Loading categories...</p>';
 
   let categories = await fetchCategoriesFromFirebase();
+  let totalCount = categories.length;
   
   let restSnapshot = await getDocs(collection(db, 'restaurants'));
   let allRestaurants = [];
@@ -192,7 +193,7 @@ async function renderAdminManageCategories() {
 
   container.innerHTML = '';
 
-  if (categories.length === 0) {
+  if (totalCount === 0) {
     container.innerHTML = '<p style="text-align:center; color:#777; font-size:12px;">No categories found.</p>';
     return;
   }
@@ -200,18 +201,26 @@ async function renderAdminManageCategories() {
   categories.forEach((cat, index) => {
     let count = allRestaurants.filter(r => r.category === cat.titleAr).length;
 
+    // بناء القائمة المنسدلة للترقيم حسب إجمالي عدد الأقسام
+    let optionsHtml = '';
+    for (let i = 1; i <= totalCount; i++) {
+      let selected = (i === index + 1) ? 'selected' : '';
+      optionsHtml += `<option value="${i}" ${selected}>#${i}</option>`;
+    }
+
     container.innerHTML += `
       <div class="admin-rest-item" style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee;">
         <div style="display:flex; align-items:center; gap:8px;">
-          <span style="background:#0f4c5c; color:#fff; padding:3px 8px; border-radius:6px; font-weight:bold; font-size:12px;">#${index + 1}</span>
+          <!-- القائمة المنسدلة لاختيار الرقم -->
+          <select onchange="changeCategoryOrder('${cat.id}', this.value)" style="background:#0f4c5c; color:#fff; padding:4px 6px; border-radius:6px; font-weight:bold; font-size:12px; border:none; cursor:pointer; outline:none;">
+            ${optionsHtml}
+          </select>
           <div>
             <strong style="font-size:13px; color:#141414;">${cat.titleAr}</strong>
             <br><small style="color:#0f4c5c; font-weight:700;">${cat.titleEn} (${count})</small>
           </div>
         </div>
-        <div style="display:flex; gap:4px; align-items:center;">
-          <button onclick="moveCategory(${index}, -1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">▲</button>
-          <button onclick="moveCategory(${index}, 1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">▼</button>
+        <div style="display:flex; gap:6px; align-items:center;">
           <button onclick="editCategory('${cat.id}')" style="background:#555; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Edit</button>
           <button onclick="deleteCategory('${cat.id}')" style="background:#d32f2f; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Delete</button>
         </div>
@@ -220,28 +229,25 @@ async function renderAdminManageCategories() {
   });
 }
 
-window.moveCategory = async function(index, direction) {
-  let targetIndex = index + direction;
-  if (targetIndex < 0 || targetIndex >= currentCategoriesList.length) return;
+// دالة تغيير موقع القسم مباشرة عند اختيار رقم جديد من السهم المنسدل
+window.changeCategoryOrder = async function(catId, newOrderVal) {
+  let newPosition = Number(newOrderVal);
+  let currentIndex = currentCategoriesList.findIndex(c => c.id === catId);
+  if (currentIndex === -1) return;
 
-  let currentCat = currentCategoriesList[index];
-  let targetCat = currentCategoriesList[targetIndex];
-
-  let currentOrder = currentCat.order !== undefined ? Number(currentCat.order) : (index + 1);
-  let targetOrder = targetCat.order !== undefined ? Number(targetCat.order) : (targetIndex + 1);
-
-  if (currentOrder === targetOrder) {
-    currentOrder = index + 1;
-    targetOrder = targetIndex + 1;
-  }
+  let movedCat = currentCategoriesList.splice(currentIndex, 1)[0];
+  currentCategoriesList.splice(newPosition - 1, 0, movedCat);
 
   try {
-    await updateDoc(doc(db, 'categories', currentCat.id), { order: targetOrder });
-    await updateDoc(doc(db, 'categories', targetCat.id), { order: currentOrder });
+    // تحديث ترتيب كافة الأقسام في داتابيز الفايربيس
+    let promises = currentCategoriesList.map((cat, idx) => {
+      return updateDoc(doc(db, 'categories', cat.id), { order: idx + 1 });
+    });
+    await Promise.all(promises);
     
     renderAdminManageCategories();
   } catch (err) {
-    alert("Error updating order: " + err.message);
+    alert("Error updating positions: " + err.message);
   }
 };
 
@@ -560,3 +566,4 @@ window.openRestaurants = openRestaurants;
 window.filterCategories = filterCategories;
 window.filterRestaurants = filterRestaurants;
 window.goBack = goBack;
+
