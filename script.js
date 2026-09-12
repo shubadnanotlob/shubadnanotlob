@@ -86,7 +86,7 @@ async function fetchCategoriesFromFirebase() {
       data.id = docSnap.id;
       currentCategoriesList.push(data);
     });
-    // الترتيب بحسب رقم الترتيب order
+    // ترتيب القائمة بحسب قيمة order
     currentCategoriesList.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     return currentCategoriesList;
   } catch (err) {
@@ -139,7 +139,6 @@ async function saveCategoryToFirebase() {
   let titleAr = document.getElementById('adminCatAr').value.trim();
   let titleEn = document.getElementById('adminCatEn').value.trim();
   let imgUrl = document.getElementById('adminCatImg').value.trim();
-  let orderInput = document.getElementById('adminCatOrder') ? document.getElementById('adminCatOrder').value : null;
 
   if (!titleAr || !titleEn) {
     alert('Please enter Arabic and English titles for the category.');
@@ -150,9 +149,12 @@ async function saveCategoryToFirebase() {
     titleAr,
     titleEn,
     imgUrl: imgUrl || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
-    order: orderInput !== null && orderInput !== '' ? Number(orderInput) : (currentCategoriesList.length + 1),
     updatedAt: serverTimestamp()
   };
+
+  if (!docId) {
+    catData.order = currentCategoriesList.length + 1;
+  }
 
   try {
     if (docId) {
@@ -175,7 +177,6 @@ function resetCategoryForm() {
   document.getElementById('adminCatAr').value = '';
   document.getElementById('adminCatEn').value = '';
   document.getElementById('adminCatImg').value = '';
-  if (document.getElementById('adminCatOrder')) document.getElementById('adminCatOrder').value = '';
   document.getElementById('categoryFormTitle').innerText = 'Add / Edit Category';
 }
 
@@ -196,25 +197,52 @@ async function renderAdminManageCategories() {
     return;
   }
 
-  categories.forEach((cat) => {
+  categories.forEach((cat, index) => {
     let count = allRestaurants.filter(r => r.category === cat.titleAr).length;
-    let orderNum = cat.order !== undefined ? cat.order : '-';
 
     container.innerHTML += `
       <div class="admin-rest-item" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-          <span style="background:#0f4c5c; color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:5px;">#${orderNum}</span>
           <strong style="font-size:13px; color:#141414;">${cat.titleAr}</strong>
           <br><small style="color:#0f4c5c; font-weight:700;">${cat.titleEn} (${count})</small>
         </div>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <button onclick="editCategory('${cat.id}')" style="background:#0f4c5c; color:#fff; border:none; padding:5px 10px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Edit</button>
-          <button onclick="deleteCategory('${cat.id}')" style="background:#d32f2f; color:#fff; border:none; padding:5px 10px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Delete</button>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button onclick="moveCategory(${index}, -1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">▲</button>
+          <button onclick="moveCategory(${index}, 1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">▼</button>
+          <button onclick="editCategory('${cat.id}')" style="background:#555; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Edit</button>
+          <button onclick="deleteCategory('${cat.id}')" style="background:#d32f2f; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Delete</button>
         </div>
       </div>
     `;
   });
 }
+
+// دالة التحريك بالأسهم والتبديل في داتابيز الفايربيس
+window.moveCategory = async function(index, direction) {
+  let targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= currentCategoriesList.length) return;
+
+  let currentCat = currentCategoriesList[index];
+  let targetCat = currentCategoriesList[targetIndex];
+
+  let currentOrder = currentCat.order !== undefined ? Number(currentCat.order) : (index + 1);
+  let targetOrder = targetCat.order !== undefined ? Number(targetCat.order) : (targetIndex + 1);
+
+  // إذا كانت القيم متساوية نضمن ترتيب متسلسل صحيح
+  if (currentOrder === targetOrder) {
+    currentOrder = index + 1;
+    targetOrder = targetIndex + 1;
+  }
+
+  try {
+    await updateDoc(doc(db, 'categories', currentCat.id), { order: targetOrder });
+    await updateDoc(doc(db, 'categories', targetCat.id), { order: currentOrder });
+    
+    renderAdminManageCategories();
+  } catch (err) {
+    alert("Error updating order: " + err.message);
+  }
+};
 
 window.editCategory = async function(docId) {
   let docSnap = await getDoc(doc(db, 'categories', docId));
@@ -224,7 +252,6 @@ window.editCategory = async function(docId) {
     document.getElementById('adminCatAr').value = cat.titleAr;
     document.getElementById('adminCatEn').value = cat.titleEn;
     document.getElementById('adminCatImg').value = cat.imgUrl || '';
-    if (document.getElementById('adminCatOrder')) document.getElementById('adminCatOrder').value = cat.order !== undefined ? cat.order : '';
     document.getElementById('categoryFormTitle').innerText = 'Edit Category';
   }
 };
