@@ -77,8 +77,24 @@ function logoutAdmin() {
 
 /* ==================== CATEGORY MANAGEMENT ==================== */
 
-async function fetchCategoriesFromFirebase() {
+async function async function fetchCategoriesFromFirebase() {
   try {
+    let snapshot = await getDocs(collection(db, 'categories'));
+    currentCategoriesList = [];
+    snapshot.forEach(docSnap => {
+      let data = docSnap.data();
+      data.id = docSnap.id;
+      currentCategoriesList.push(data);
+    });
+    // الفرز حسب خاصية order
+    currentCategoriesList.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return currentCategoriesList;
+  } catch (err) {
+    console.error("Error fetching categories:", err);
+    return [];
+  }
+}
+
     let snapshot = await getDocs(collection(db, 'categories'));
     currentCategoriesList = [];
     snapshot.forEach(docSnap => {
@@ -136,12 +152,15 @@ async function saveCategoryToFirebase() {
     return;
   }
 
-  let catData = {
+    let catData = {
     titleAr,
     titleEn,
     imgUrl: imgUrl || 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
+    order: docId ? undefined : (currentCategoriesList.length + 1), // ترتيب تلقائي جديد
     updatedAt: serverTimestamp()
   };
+  if (docId) delete catData.order; // عدم إلغاء الترتيب عند التعديل
+
 
   try {
     if (docId) {
@@ -168,10 +187,17 @@ function resetCategoryForm() {
 }
 
 async function renderAdminManageCategories() {
+async function renderAdminManageCategories() {
   let container = document.getElementById('adminManageCategoriesContainer');
   container.innerHTML = '<p style="text-align:center; padding:10px; font-size:12px; color:#666;">Loading categories...</p>';
 
   let categories = await fetchCategoriesFromFirebase();
+  
+  // جلب المطاعم لحساب العداد
+  let restSnapshot = await getDocs(collection(db, 'restaurants'));
+  let allRestaurants = [];
+  restSnapshot.forEach(docSnap => allRestaurants.push(docSnap.data()));
+
   container.innerHTML = '';
 
   if (categories.length === 0) {
@@ -179,21 +205,45 @@ async function renderAdminManageCategories() {
     return;
   }
 
-  categories.forEach(cat => {
+  categories.forEach((cat, index) => {
+    let count = allRestaurants.filter(r => r.category === cat.titleAr).length;
+
     container.innerHTML += `
-      <div class="admin-rest-item">
+      <div class="admin-rest-item" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
           <strong style="font-size:13px; color:#141414;">${cat.titleAr}</strong>
-          <br><small style="color:#0f4c5c; font-weight:700;">${cat.titleEn}</small>
+          <br><small style="color:#0f4c5c; font-weight:700;">${cat.titleEn} (${count} Restaurants)</small>
         </div>
-        <div style="display:flex; gap:6px;">
-          <button onclick="editCategory('${cat.id}')" style="background:#0f4c5c; color:#fff; border:none; padding:5px 10px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Edit</button>
-          <button onclick="deleteCategory('${cat.id}')" style="background:#d32f2f; color:#fff; border:none; padding:5px 10px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Delete</button>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button onclick="moveCategory(${index}, -1)" style="background:#555; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">▲</button>
+          <button onclick="moveCategory(${index}, 1)" style="background:#555; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">▼</button>
+          <button onclick="editCategory('${cat.id}')" style="background:#0f4c5c; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Edit</button>
+          <button onclick="deleteCategory('${cat.id}')" style="background:#d32f2f; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Delete</button>
         </div>
       </div>
     `;
   });
 }
+window.moveCategory = asyncfunction(index, direction) {
+  let targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= currentCategoriesList.length) return;
+
+  let currentCat = currentCategoriesList[index];
+  let targetCat = currentCategoriesList[targetIndex];
+
+  let tempOrder = currentCat.order || (index + 1);
+  let newOrder = targetCat.order || (targetIndex + 1);
+
+  try {
+    await updateDoc(doc(db, 'categories', currentCat.id), { order: newOrder });
+    await updateDoc(doc(db, 'categories', targetCat.id), { order: tempOrder });
+    
+    renderAdminManageCategories();
+  } catch (err) {
+    alert("Error updating order: " + err.message);
+  }
+};
+
 
 window.editCategory = async function(docId) {
   let docSnap = await getDoc(doc(db, 'categories', docId));
