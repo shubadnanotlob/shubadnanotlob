@@ -86,7 +86,7 @@ async function fetchCategoriesFromFirebase() {
       data.id = docSnap.id;
       currentCategoriesList.push(data);
     });
-    // ترتيب القائمة بحسب قيمة order
+    // ترتيب الأقسام حسب قيمة order
     currentCategoriesList.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     return currentCategoriesList;
   } catch (err) {
@@ -201,14 +201,17 @@ async function renderAdminManageCategories() {
     let count = allRestaurants.filter(r => r.category === cat.titleAr).length;
 
     container.innerHTML += `
-      <div class="admin-rest-item" style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <strong style="font-size:13px; color:#141414;">${cat.titleAr}</strong>
-          <br><small style="color:#0f4c5c; font-weight:700;">${cat.titleEn} (${count})</small>
+      <div class="admin-rest-item" style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="background:#0f4c5c; color:#fff; padding:3px 8px; border-radius:6px; font-weight:bold; font-size:12px;">#${index + 1}</span>
+          <div>
+            <strong style="font-size:13px; color:#141414;">${cat.titleAr}</strong>
+            <br><small style="color:#0f4c5c; font-weight:700;">${cat.titleEn} (${count})</small>
+          </div>
         </div>
         <div style="display:flex; gap:4px; align-items:center;">
-          <button onclick="moveCategory(${index}, -1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">▲</button>
-          <button onclick="moveCategory(${index}, 1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">▼</button>
+          <button onclick="moveCategory(${index}, -1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">▲</button>
+          <button onclick="moveCategory(${index}, 1)" style="background:#0f4c5c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">▼</button>
           <button onclick="editCategory('${cat.id}')" style="background:#555; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Edit</button>
           <button onclick="deleteCategory('${cat.id}')" style="background:#d32f2f; color:#fff; border:none; padding:5px 8px; border-radius:6px; font-weight:700; cursor:pointer; font-size:11px;">Delete</button>
         </div>
@@ -217,7 +220,6 @@ async function renderAdminManageCategories() {
   });
 }
 
-// دالة التحريك بالأسهم والتبديل في داتابيز الفايربيس
 window.moveCategory = async function(index, direction) {
   let targetIndex = index + direction;
   if (targetIndex < 0 || targetIndex >= currentCategoriesList.length) return;
@@ -228,7 +230,6 @@ window.moveCategory = async function(index, direction) {
   let currentOrder = currentCat.order !== undefined ? Number(currentCat.order) : (index + 1);
   let targetOrder = targetCat.order !== undefined ? Number(targetCat.order) : (targetIndex + 1);
 
-  // إذا كانت القيم متساوية نضمن ترتيب متسلسل صحيح
   if (currentOrder === targetOrder) {
     currentOrder = index + 1;
     targetOrder = targetIndex + 1;
